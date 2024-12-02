@@ -1,0 +1,110 @@
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Flatten, Conv2D, MaxPooling2D, Dropout
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras import initializers
+import matplotlib.pyplot as plt
+from tensorflow.keras.datasets import mnist, fashion_mnist, cifar10
+import numpy as np
+
+# Завантажуємо датасети
+def load_dataset(dataset_name):
+    if dataset_name == 'mnist':
+        return mnist.load_data()
+    elif dataset_name == 'fashion_mnist':
+        return fashion_mnist.load_data()
+    elif dataset_name == 'cifar10':
+        return cifar10.load_data()
+
+# Створення моделі
+def create_model(initializer, input_shape, num_classes):
+    model = Sequential()
+    model.add(Conv2D(32, kernel_size=(3, 3), activation='relu', kernel_initializer=initializer, input_shape=input_shape))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Flatten())
+    model.add(Dense(64, activation='relu', kernel_initializer=initializer))  # Зменшено кількість нейронів
+    model.add(Dropout(0.5))
+    model.add(Dense(num_classes, activation='softmax', kernel_initializer=initializer))
+    
+    model.compile(optimizer=Adam(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+# Тренування і тестування моделі
+def train_and_evaluate(dataset_name, initializer):
+    # Завантажуємо відповідний датасет
+    if dataset_name == 'mnist':
+        (train_images, train_labels), (test_images, test_labels) = load_dataset('mnist')
+        input_shape = (28, 28, 1)
+        num_classes = 10
+    elif dataset_name == 'fashion_mnist':
+        (train_images, train_labels), (test_images, test_labels) = load_dataset('fashion_mnist')
+        input_shape = (28, 28, 1)
+        num_classes = 10
+    elif dataset_name == 'cifar10':
+        (train_images, train_labels), (test_images, test_labels) = load_dataset('cifar10')
+        input_shape = (32, 32, 3)
+        num_classes = 10
+    
+    # Масштабуємо пікселі зображень до [0, 1]
+    train_images = train_images / 255.0
+    test_images = test_images / 255.0
+    
+    # Перетворюємо в формат (batch_size, height, width, channels)
+    if input_shape[-1] == 1:  # Для MNIST та FashionMNIST
+        train_images = np.expand_dims(train_images, axis=-1)
+        test_images = np.expand_dims(test_images, axis=-1)
+    
+    # Створюємо модель
+    model = create_model(initializer, input_shape, num_classes)
+    
+    # Навчання (зменшили кількість епох до 5 для прискорення)
+    history = model.fit(train_images, train_labels, epochs=5, validation_data=(test_images, test_labels), verbose=2, batch_size=64)
+    
+    # Оцінка
+    val_accuracy = model.evaluate(test_images, test_labels, verbose=2)[1]
+    print(f"Фінальна точність на {dataset_name}: {val_accuracy}")
+    
+    return history
+
+# Функція для побудови графіків
+def plot_history(history, initializer_name):
+    plt.figure(figsize=(12, 4))
+    
+    # Точність
+    plt.subplot(1, 2, 1)
+    plt.plot(history.history['accuracy'], label='train accuracy')
+    plt.plot(history.history['val_accuracy'], label='val accuracy')
+    plt.title(f'Accuracy ({initializer_name})')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    
+    # Втрата
+    plt.subplot(1, 2, 2)
+    plt.plot(history.history['loss'], label='train loss')
+    plt.plot(history.history['val_loss'], label='val loss')
+    plt.title(f'Loss ({initializer_name})')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    
+    plt.show()
+
+# Тестуємо різні стратегії ініціалізації
+initializers = {
+    'Xavier': initializers.GlorotUniform(),
+    'He': initializers.HeNormal(),
+    'Orthogonal': initializers.Orthogonal(),
+    'Random': initializers.RandomNormal()
+}
+
+# Обираємо датасет для тестування
+datasets = ['mnist', 'fashion_mnist', 'cifar10']
+
+# Запускаємо експерименти для кожного датасету та стратегії
+for dataset in datasets:
+    print(f"--- Тестування на датасеті: {dataset} ---")
+    for name, initializer in initializers.items():
+        print(f"Ініціалізація: {name}")
+        history = train_and_evaluate(dataset, initializer)
+        plot_history(history, name)

@@ -1,0 +1,68 @@
+# 1. Імпортуємо необхідні бібліотеки
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Flatten
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.initializers import HeNormal, GlorotNormal, Orthogonal, RandomNormal
+import matplotlib.pyplot as plt
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.utils import to_categorical
+
+# 2. Завантажуємо і підготовляємо датасет MNIST
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+
+# Нормалізуємо зображення в діапазон [0, 1]
+x_train = x_train.astype('float32') / 255.0
+x_test = x_test.astype('float32') / 255.0
+
+# Перетворюємо мітки в one-hot кодування
+y_train = to_categorical(y_train, 10)
+y_test = to_categorical(y_test, 10)
+
+# 3. Функція для створення моделі з різними стратегіями ініціалізації ваг
+def create_model(initializer):
+    model = Sequential([
+        Flatten(input_shape=(28, 28)),  # Плоска вхідна лінія для 28x28 зображень
+        Dense(128, activation='relu', kernel_initializer=initializer),  # Перший шар
+        Dense(10, activation='softmax', kernel_initializer=initializer)  # Вихідний шар
+    ])
+    
+    # Компіліруємо модель
+    model.compile(optimizer=Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+    
+    return model
+
+# 4. Навчання моделей з різними стратегіями ініціалізації
+initializers = {
+    'Xavier (Glorot)': GlorotNormal(),
+    'He': HeNormal(),
+    'Orthogonal': Orthogonal(),
+    'Random': RandomNormal(mean=0.0, stddev=0.05)
+}
+
+history = {}
+
+# Навчаємо кожну модель і зберігаємо історію
+for name, initializer in initializers.items():
+    print(f"Навчання моделі з ініціалізацією: {name}")
+    model = create_model(initializer)
+    history[name] = model.fit(x_train, y_train, epochs=10, batch_size=128, validation_data=(x_test, y_test), verbose=2)
+
+# 5. Порівняння результатів
+# Візуалізуємо точність для кожної стратегії ініціалізації
+plt.figure(figsize=(10, 6))
+
+for name, hist in history.items():
+    plt.plot(hist.history['val_accuracy'], label=f'{name} - Validation Accuracy')
+
+plt.title('Порівняння точності валідації для різних стратегій ініціалізації')
+plt.xlabel('Епохи')
+plt.ylabel('Точність')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# Порівнюємо фінальні точності
+for name, hist in history.items():
+    final_acc = hist.history['val_accuracy'][-1]
+    print(f'{name} - фінальна точність на валідації: {final_acc:.4f}')
